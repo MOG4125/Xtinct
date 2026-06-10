@@ -3,165 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XTINCT | Studio Station</title>
+    <title>XTINCT | 3D Pro</title>
     <style>
-        body { margin: 0; background: #f0f0f0; overflow: hidden; font-family: 'Inter', sans-serif; }
-        #labels { 
-            position: fixed; top: 30px; width: 100%; text-align: center; 
-            color: #ff0000; letter-spacing: 8px; font-weight: 900; 
-            pointer-events: none; text-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Inter', sans-serif; }
+        #ui { position: fixed; top: 20px; width: 100%; text-align: center; color: #ff0000; pointer-events: none; letter-spacing: 3px; font-weight: 900; }
+        #hint { position: fixed; bottom: 20px; width: 100%; text-align: center; color: #444; font-size: 10px; letter-spacing: 1px; }
     </style>
 </head>
 <body>
-    <div id="labels">XTINCT // STUDIO</div>
+    <div id="ui">XTINCT // LIVE</div>
+    <div id="hint">MOUSE WHEEL: ZOOM | LEFT CLICK: ROTATE | RIGHT CLICK: PAN</div>
 
     <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
     </script>
 
     <script type="module">
         import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // --- Setup ---
+        // --- Core Setup ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xfafafa);
+        scene.fog = new THREE.FogExp2(0x000000, 0.1);
         
-        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 14, 0); // High vantage point to see everything
-        camera.lookAt(0, 0, 0);
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 8, 12);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.shadowMap.enabled = true;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
 
-        // --- Studio Lighting ---
-        const ambient = new THREE.AmbientLight(0xffffff, 0.8);
+        // --- Navigation ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.maxPolarAngle = Math.PI / 2; // Don't go below floor
+        controls.minDistance = 5;
+        controls.maxDistance = 25;
+
+        // --- Lighting ---
+        const ambient = new THREE.AmbientLight(0xffffff, 0.05);
         scene.add(ambient);
 
-        const topLight = new THREE.DirectionalLight(0xffffff, 1.2);
-        topLight.position.set(0, 20, 5);
-        topLight.castShadow = true;
-        scene.add(topLight);
+        const spotlight = new THREE.SpotLight(0xff0000, 100);
+        spotlight.position.set(0, 15, 0);
+        spotlight.angle = Math.PI / 4;
+        spotlight.penumbra = 0.5;
+        scene.add(spotlight);
 
-        // Subtle Red "X" Accents
-        const x1 = new THREE.PointLight(0xff0000, 15);
-        x1.position.set(-8, 5, -8);
-        scene.add(x1);
+        // Side glow for the "X" feel
+        const blueGlow = new THREE.PointLight(0x00f2ea, 20, 15);
+        blueGlow.position.set(10, 2, -5);
+        scene.add(blueGlow);
 
-        const x2 = new THREE.PointLight(0xff0000, 15);
-        x2.position.set(8, 5, 8);
-        scene.add(x2);
+        const redGlow = new THREE.PointLight(0xff0000, 20, 15);
+        redGlow.position.set(-10, 2, -5);
+        scene.add(redGlow);
 
-        // --- Materials ---
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.1 });
-        const platterMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.4, metalness: 0.8 });
-        const accentMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        // --- Geometry & Materials ---
+        const chassisMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.2, metalness: 0.5 });
+        const platterMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.3 });
+        const neonMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
 
-        // --- Deck Builder ---
-        function createDeck(x) {
+        const decks = [];
+
+        function createDeck(xPos) {
             const group = new THREE.Group();
-            group.position.x = x;
+            group.position.x = xPos;
 
-            // Chassis
-            const body = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.6, 6.5), bodyMat);
-            body.receiveShadow = true;
-            body.castShadow = true;
+            // Main Body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(5, 0.6, 7), chassisMat);
             group.add(body);
 
-            // Platter
-            const platter = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.9, 0.2, 64), platterMat);
-            platter.position.y = 0.4;
-            group.add(platter);
+            // Spinning Platter
+            const platterGroup = new THREE.Group();
+            platterGroup.position.y = 0.35;
+            
+            const platter = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 0.15, 64), platterMat);
+            platterGroup.add(platter);
 
-            // XTINCT Center Label
-            const label = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.21, 32), accentMat);
-            label.position.y = 0.41;
-            group.add(label);
+            // Center Label
+            const label = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.16, 32), neonMat);
+            platterGroup.add(label);
 
-            // Controls
-            const playBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.1, 32), new THREE.MeshStandardMaterial({color: 0x00ff88}));
-            playBtn.position.set(-1.6, 0.35, 2.4);
-            playBtn.userData = { type: 'play', deckId: x < 0 ? 1 : 2 };
-            group.add(playBtn);
+            group.add(platterGroup);
+
+            // Emissive Details (Buttons)
+            const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.1, 16), new THREE.MeshBasicMaterial({ color: 0x00f2ea }));
+            btn.position.set(-1.8, 0.3, 2.5);
+            group.add(btn);
 
             scene.add(group);
-            return { group, platter, playing: false };
+            decks.push({ group, platterGroup });
         }
 
-        const deck1 = createDeck(-2.8);
-        const deck2 = createDeck(2.8);
+        createDeck(-3);
+        createDeck(3);
 
-        // --- Minimal Floor ---
-        const floor = new THREE.Mesh(
-            new THREE.PlaneGeometry(50, 50),
-            new THREE.MeshStandardMaterial({ color: 0xf0f0f0 })
-        );
-        floor.rotation.x = -Math.PI / 2;
-        floor.position.y = -0.31;
-        floor.receiveShadow = true;
-        scene.add(floor);
+        // --- Environment ---
+        const grid = new THREE.GridHelper(100, 40, 0x111111, 0x050505);
+        grid.position.y = -0.3;
+        scene.add(grid);
 
-        // --- Social Pads ---
-        const platforms = ['INSTA', 'YT', 'TIKTOK', 'SC'];
-        const urls = [
-            'https://instagram.com/xtinct',
-            'https://youtube.com/xtinct',
-            'https://tiktok.com/@xtinct',
-            'https://soundcloud.com/xtinct'
+        // --- Interactive Pads (Socials) ---
+        const socialLinks = [
+            { name: 'INSTA', url: 'https://instagram.com/xtinct', color: 0xff0000 },
+            { name: 'YT', url: 'https://youtube.com/xtinct', color: 0xffffff },
+            { name: 'TIKTOK', url: 'https://tiktok.com/@xtinct', color: 0x00f2ea }
         ];
 
-        urls.forEach((url, i) => {
-            const pad = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.15, 0.8), bodyMat);
-            pad.position.set((i - 1.5) * 1.3, 0, 4.8);
-            pad.userData = { type: 'pad', url };
-            scene.add(pad);
-        });
-
-        // --- Interaction ---
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
 
-        window.addEventListener('mousedown', (e) => {
+        socialLinks.forEach((link, i) => {
+            const pad = new THREE.Mesh(
+                new THREE.BoxGeometry(1.2, 0.1, 0.8),
+                new THREE.MeshStandardMaterial({ color: 0x222222, emissive: link.color, emissiveIntensity: 0.2 })
+            );
+            pad.position.set((i - 1) * 1.5, 0, 5);
+            pad.userData = { url: link.url };
+            scene.add(pad);
+        });
+
+        // --- Event Listeners ---
+        window.addEventListener('click', (e) => {
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
             raycaster.setFromCamera(mouse, camera);
-
-            const hits = raycaster.intersectObjects(scene.children, true);
-            if (hits.length > 0) {
-                const obj = hits[0].object;
-                if (obj.userData.type === 'play') {
-                    const d = obj.userData.deckId === 1 ? deck1 : deck2;
-                    d.playing = !d.playing;
-                    obj.position.y -= 0.1;
-                    setTimeout(() => obj.position.y += 0.1, 100);
-                } else if (obj.userData.type === 'pad') {
-                    window.open(obj.userData.url, '_blank');
-                }
+            const hits = raycaster.intersectObjects(scene.children);
+            if(hits.length > 0 && hits[0].object.userData.url) {
+                window.open(hits[0].object.userData.url, '_blank');
             }
         });
-
-        // --- Loop ---
-        function animate() {
-            requestAnimationFrame(animate);
-            if (deck1.playing) deck1.platter.rotation.y += 0.05;
-            if (deck2.playing) deck2.platter.rotation.y += 0.05;
-            
-            // Subtle breathing of the "X" lights
-            const intensity = 10 + Math.sin(Date.now() * 0.002) * 5;
-            x1.intensity = intensity;
-            x2.intensity = intensity;
-
-            renderer.render(scene, camera);
-        }
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = Date.now() * 0.001;
+
+            // Keep wheels moving
+            decks.forEach((deck, i) => {
+                deck.platterGroup.rotation.y += 0.04;
+                // Subtle bounce
+                deck.group.position.y = Math.sin(time + i) * 0.05;
+            });
+
+            // Pulse lights
+            spotlight.intensity = 80 + Math.sin(time * 4) * 20;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
 
         animate();
     </script>
