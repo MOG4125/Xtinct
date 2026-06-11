@@ -1,117 +1,90 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-// --- Scene & Camera ---
+// --- Scene Setup ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x050505); // Slightly off-black to see depth
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 10, 15);
+scene.background = new THREE.Color(0x020202);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 10, 20);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
-renderer.toneMapping = THREE.ReinhardToneMapping;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-// --- Brighter Lighting ---
-const ambient = new THREE.AmbientLight(0xffffff, 0.8); // Higher intensity to see gear
-scene.add(ambient);
+// --- Lighting ---
+scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+const light = new THREE.DirectionalLight(0xffffff, 2);
+light.position.set(5, 15, 10);
+scene.add(light);
 
-const redLight = new THREE.PointLight(0xff0000, 50, 20);
-redLight.position.set(-10, 5, 5);
-scene.add(redLight);
-
-const blueLight = new THREE.PointLight(0x00f2ea, 50, 20);
-blueLight.position.set(10, 5, 5);
-scene.add(blueLight);
-
-// --- Materials ---
-const deckMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3, metalness: 0.6 });
-const platterMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.2, metalness: 0.9 });
-
-// --- Decks ---
+// --- Loader ---
+const loader = new GLTFLoader();
 const wheels = [];
-const createDeck = (x) => {
-    const group = new THREE.Group();
-    group.position.x = x;
-    
-    // Main Chassis
-    const body = new THREE.Mesh(new THREE.BoxGeometry(6, 0.6, 8), deckMat);
-    group.add(body);
 
-    // Spinning Wheel
-    const platter = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.2, 64), platterMat);
-    platter.position.y = 0.4;
-    group.add(platter);
+// Matches your exact filename
+loader.load('pioneer_DJ_console.glb', 
+    (gltf) => {
+        const model = gltf.scene;
+        scene.add(model);
+        
+        // Hide the loading text
+        if (document.getElementById('loading')) {
+            document.getElementById('loading').style.display = 'none';
+        }
 
-    // Center Glow
-    const glow = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.6, 0.6, 0.22, 32), 
-        new THREE.MeshBasicMaterial({ color: 0xff0000 })
-    );
-    glow.position.y = 0.4;
-    group.add(glow);
+        model.traverse((node) => {
+            if (node.isMesh) {
+                const name = node.name.toLowerCase();
 
-    scene.add(group);
-    wheels.push(platter);
-};
+                // 1. Setup Jog Wheels & Add "X"
+                if (name.includes('jog') || name.includes('wheel') || name.includes('platter')) {
+                    wheels.push(node);
+                    
+                    const xGroup = new THREE.Group();
+                    const xMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                    const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.1), xMat);
+                    const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.1), xMat);
+                    b1.rotation.y = Math.PI / 4;
+                    b2.rotation.y = -Math.PI / 4;
+                    xGroup.add(b1, b2);
+                    
+                    // Slightly above surface
+                    xGroup.position.y = 0.08; 
+                    xGroup.rotation.x = Math.PI / 2;
+                    node.add(xGroup);
+                }
 
-createDeck(-3.5);
-createDeck(3.5);
-
-// --- Glowing Pads (Interactive) ---
-const pads = [];
-const padData = [
-    { name: 'INSTA', color: 0xff00ff, url: 'https://instagram.com/xtinct' },
-    { name: 'YT', color: 0xff0000, url: 'https://youtube.com/xtinct' },
-    { name: 'TIKTOK', color: 0x00f2ea, url: 'https://tiktok.com/@xtinct' },
-    { name: 'SC', color: 0xff8800, url: 'https://soundcloud.com/xtinct' }
-];
-
-padData.forEach((data, i) => {
-    const pad = new THREE.Mesh(
-        new THREE.BoxGeometry(1.2, 0.2, 0.8),
-        new THREE.MeshStandardMaterial({ 
-            color: 0x222222, 
-            emissive: data.color, 
-            emissiveIntensity: 2 
-        })
-    );
-    pad.position.set((i - 1.5) * 1.5, 0.2, 5.5);
-    pad.userData = { url: data.url };
-    scene.add(pad);
-    pads.push(pad);
-});
-
-// --- Click Interaction ---
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-
-window.addEventListener('click', (e) => {
-    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(pads);
-    if (intersects.length > 0) {
-        window.open(intersects[0].object.userData.url, '_blank');
+                // 2. Setup LEDs
+                if (name.includes('play')) {
+                    node.material = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x00ff00, emissiveIntensity: 10 });
+                }
+                if (name.includes('cue')) {
+                    node.material = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xffaa00, emissiveIntensity: 10 });
+                }
+            }
+        });
+    },
+    undefined,
+    (error) => {
+        const loadingDiv = document.getElementById('loading');
+        if (loadingDiv) {
+            loadingDiv.innerHTML = "ERROR: 'pioneer_DJ_console.glb' NOT FOUND.<br>Check your spelling and GitHub upload.";
+        }
+        console.error(error);
     }
-});
+);
 
-// --- Animation Loop ---
 function animate() {
     requestAnimationFrame(animate);
-    
-    // Perpetual Motion
     wheels.forEach(w => w.rotation.y += 0.04);
-    
-    // Subtle pad pulse
-    pads.forEach(p => {
-        p.material.emissiveIntensity = 1 + Math.sin(Date.now() * 0.005) * 0.5;
-    });
-
     controls.update();
     renderer.render(scene, camera);
 }
