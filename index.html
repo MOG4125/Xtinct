@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XTINCT | Pro Console</title>
+    <title>XTINCT | Interactive Console</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
         #loading { 
@@ -12,12 +12,17 @@
             justify-content: center; align-items: center; z-index: 100; 
             letter-spacing: 5px; font-weight: 900; 
         }
+        #hint {
+            position: fixed; bottom: 20px; width: 100%; text-align: center;
+            color: rgba(255,255,255,0.4); font-size: 10px; letter-spacing: 2px;
+            pointer-events: none; text-transform: uppercase; z-index: 5;
+        }
     </style>
 </head>
 <body>
-    <div id="loading">XTINCT // INITIALIZING...</div>
+    <div id="loading">XTINCT // INITIALIZING SYSTEM...</div>
+    <div id="hint">Click Pads for Socials // Drag to Rotate</div>
 
-    <!-- This block tells the browser where to find Three.js on the internet -->
     <script type="importmap">
         {
             "imports": {
@@ -26,8 +31,6 @@
             }
         }
     </script>
-
-    <!-- This links to your logic file -->
     <script type="module" src="script.js"></script>
 </body>
 </html>
