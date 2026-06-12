@@ -2,17 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>XTINCT | Pro Performance Station</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; cursor: crosshair; }
+        body { 
+            margin: 0; 
+            background: #000; 
+            overflow: hidden; 
+            font-family: sans-serif; 
+            cursor: crosshair;
+            touch-action: none; /* Critical for mobile: stops page scrolling while playing */
+        }
         #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #ff0000; display: flex; justify-content: center; align-items: center; z-index: 100; letter-spacing: 5px; font-weight: 900; }
-        #ui { position: fixed; bottom: 20px; width: 100%; text-align: center; color: rgba(255,0,0,0.5); font-size: 10px; letter-spacing: 2px; pointer-events: none; text-transform: uppercase; }
+        #ui { position: fixed; bottom: 20px; width: 100%; text-align: center; color: rgba(255,0,0,0.5); font-size: 10px; letter-spacing: 2px; pointer-events: none; text-transform: uppercase; padding: 0 10px; box-sizing: border-box; }
+        @media (max-width: 600px) { #ui { font-size: 8px; } }
     </style>
 </head>
 <body>
-    <div id="loading">XTINCT // CALIBRATING SYSTEM...</div>
-    <div id="ui">Drag Knobs to Rotate // Slide Faders // Click Pads for Socials</div>
+    <div id="loading">XTINCT // MOBILE SYNC...</div>
+    <div id="ui">Drag Knobs // Slide Faders // Tap Pads for Socials</div>
     <script type="importmap">
         {
             "imports": {
