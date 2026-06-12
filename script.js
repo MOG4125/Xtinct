@@ -2,43 +2,46 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-// --- Scene Setup ---
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x020202);
-
-const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 12, 18);
-
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-document.body.appendChild(renderer.domElement);
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-
-// --- Lighting ---
-scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-const sun = new THREE.DirectionalLight(0xffffff, 2);
-sun.position.set(5, 15, 10);
-scene.add(sun);
-
-// --- Social Links Mapping ---
-const socialLinks = {
+// --- Configuration ---
+const SOCIALS = {
     'insta': 'https://instagram.com/xtinct',
     'yt': 'https://youtube.com/xtinct',
     'tiktok': 'https://tiktok.com/@xtinct',
     'sc': 'https://soundcloud.com/xtinct'
 };
 
-// --- Loader & Model Interaction ---
-const loader = new GLTFLoader();
-const wheels = [];
-const clickablePads = [];
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x020202);
+
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 10, 20);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+// Lighting
+scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+const sun = new THREE.DirectionalLight(0xffffff, 2);
+sun.position.set(5, 15, 10);
+scene.add(sun);
+
+// --- Interaction State ---
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
+let activeObject = null;
+let isDragging = false;
 
+const wheels = [];
+const interactivePads = [];
+const moveables = []; // Knobs and Faders
+
+// --- Model Loader ---
+const loader = new GLTFLoader();
 loader.load('pioneer_DJ_console.glb', (gltf) => {
     const model = gltf.scene;
     scene.add(model);
@@ -48,7 +51,7 @@ loader.load('pioneer_DJ_console.glb', (gltf) => {
         if (node.isMesh) {
             const name = node.name.toLowerCase();
 
-            // 1. Spinning Wheels + Red X
+            // 1. Spinning Jog Wheels + X
             if (name.includes('jog') || name.includes('wheel')) {
                 wheels.push(node);
                 const xGroup = new THREE.Group();
@@ -61,35 +64,72 @@ loader.load('pioneer_DJ_console.glb', (gltf) => {
                 node.add(xGroup);
             }
 
-            // 2. Play/Cue LED Glow
-            if (name.includes('play')) {
-                node.material = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x00ff00, emissiveIntensity: 10 });
-            }
-            if (name.includes('cue')) {
-                node.material = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffaa00, emissiveIntensity: 10 });
+            // 2. Interactive Pads (Aggressive Naming Match)
+            if (name.includes('pad') || name.includes('cube') || name.includes('button') || name.includes('cue')) {
+                const keys = Object.keys(SOCIALS);
+                const link = SOCIALS[keys[interactivePads.length % keys.length]];
+                node.userData = { isPad: true, url: link };
+                interactivePads.push(node);
             }
 
-            // 3. Performance Pads (Clickable)
-            if (name.includes('pad')) {
-                clickablePads.push(node);
-                // Assign links based on which pad it is (looping through socials)
-                const keys = Object.keys(socialLinks);
-                const index = clickablePads.length % keys.length;
-                node.userData.url = socialLinks[keys[index]];
+            // 3. Knobs & Faders
+            if (name.includes('knob') || name.includes('fader') || name.includes('slider') || name.includes('eq')) {
+                node.userData = { 
+                    isKnob: name.includes('knob') || name.includes('eq'),
+                    isFader: name.includes('fader') || name.includes('slider'),
+                    initialY: node.position.y,
+                    initialRot: node.rotation.y
+                };
+                moveables.push(node);
             }
         }
     });
 });
 
-// --- Click Interaction Logic ---
-window.addEventListener('click', (event) => {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+// --- Mouse / Touch Logic ---
+window.addEventListener('mousedown', (e) => {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(clickablePads);
-    if (intersects.length > 0) {
-        window.open(intersects[0].object.userData.url, '_blank');
+
+    const hits = raycaster.intersectObjects(scene.children, true);
+    if (hits.length > 0) {
+        const obj = hits[0].object;
+        
+        // Handle Pad Click
+        if (obj.userData.isPad) {
+            window.open(obj.userData.url, '_blank');
+            return;
+        }
+
+        // Handle Knob/Fader Start
+        if (obj.userData.isKnob || obj.userData.isFader) {
+            activeObject = obj;
+            isDragging = true;
+            controls.enabled = false; // Stop camera moving while turning knobs
+        }
     }
+});
+
+window.addEventListener('mousemove', (e) => {
+    if (!isDragging || !activeObject) return;
+
+    const deltaY = e.movementY * 0.01;
+    const deltaX = e.movementX * 0.01;
+
+    if (activeObject.userData.isKnob) {
+        activeObject.rotation.y += deltaX * 5; // Rotate knob
+    } else if (activeObject.userData.isFader) {
+        activeObject.position.z += deltaY; // Slide fader back/forth
+        // Limit movement so it doesn't fly off the console
+        activeObject.position.z = THREE.MathUtils.clamp(activeObject.position.z, -1, 1);
+    }
+});
+
+window.addEventListener('mouseup', () => {
+    isDragging = false;
+    activeObject = null;
+    controls.enabled = true; // Re-enable camera
 });
 
 // --- Animation Loop ---
